@@ -1,0 +1,29 @@
+name: macOS Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Homebrew dependencies
+        run: |
+          brew update > /dev/null 2>&1 || true
+          brew install cli11 yaml-cpp valijson googletest
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test (excluding SCR1 integration)
+        run: ctest --test-dir build --output-on-failure -E scr1

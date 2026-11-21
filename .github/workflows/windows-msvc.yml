@@ -1,0 +1,38 @@
+name: Windows (MSVC + vcpkg)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Restore vcpkg dependencies
+        run: vcpkg install --triplet x64-windows --no-debug
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test (excluding SCR1 integration)
+        run: ctest --test-dir build -C Release --output-on-failure -E scr1
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: verihogg-format-windows-x64
+          path: build/bin/verihogg-format.exe
+          if-no-files-found: warn
+          retention-days: 7
