@@ -188,9 +188,14 @@ if(GTest_FOUND)
     endif()
     include(GoogleTest)
     gtest_discover_tests(verihogg-tests DISCOVERY_MODE PRE_TEST)
-    add_test(NAME CheckCliInputErrors
+    set(VHG_EMULATOR "")
+  if(CMAKE_CROSSCOMPILING_EMULATOR)
+    set(VHG_EMULATOR ${CMAKE_CROSSCOMPILING_EMULATOR})
+  endif()
+  add_test(NAME CheckCliInputErrors
       COMMAND ${CMAKE_COMMAND}
         -DFORMATTER=$<TARGET_FILE:verihogg-format>
+        -DEMULATOR=${VHG_EMULATOR}
         -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/check-cli-tests
         -P ${CMAKE_CURRENT_SOURCE_DIR}/formatter/tests/check_cli_test.cmake)
   endif()

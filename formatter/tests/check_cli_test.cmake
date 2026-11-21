@@ -15,7 +15,7 @@ file(WRITE "${test_dir}/config.yaml" "version: \"0.1.0\"\nindentation_spaces: 2\
 
 function(check_cli expected_status expected_dirty)
   execute_process(
-    COMMAND "${FORMATTER}" --check --config "${test_dir}/config.yaml" ${ARGN}
+    COMMAND ${EMULATOR} "${FORMATTER}" --check --config "${test_dir}/config.yaml" ${ARGN}
     WORKING_DIRECTORY "${test_dir}"
     INPUT_FILE "${test_dir}/stdin.sv"
     RESULT_VARIABLE status
