@@ -1,0 +1,98 @@
+name: Windows (MinGW cross-compile)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MINGW_DEPS: /opt/mingw-deps
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install MinGW toolchain and Wine
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            mingw-w64 g++-mingw-w64-x86-64-posix ninja-build \
+            wine64 wine32 wine wine-binfmt
+          # Initialize Wine prefix to avoid first-run delays during testing
+          export WINEPREFIX=/tmp/wine
+          wine64 wineboot --init 2>/dev/null || true
+          sleep 1
+          wine64 wineboot -e 2>/dev/null || true
+
+      - name: Cache MinGW dependencies (slang, yaml-cpp, gtest)
+        id: cache-mingw
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.MINGW_DEPS }}
+          key: mingw-deps-${{ hashFiles('cmake/toolchain-x86_64-w64-mingw32.cmake') }}
+
+      - name: Build slang for MinGW
+        if: steps.cache-mingw.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch v10.0 \
+            https://github.com/MikePopoloski/slang.git /tmp/slang-src
+          cmake -S /tmp/slang-src -B /tmp/slang-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
+            -DCMAKE_INSTALL_PREFIX=${{ env.MINGW_DEPS }} \
+            -DSLANG_TESTS=OFF -DSLANG_BENCHMARKS=OFF -DBUILD_SHARED_LIBS=OFF \
+            -DSLANG_USE_BOOST=OFF
+          cmake --build /tmp/slang-build
+          cmake --install /tmp/slang-build
+
+      - name: Build yaml-cpp for MinGW
+        if: steps.cache-mingw.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch 0.9.0 \
+            https://github.com/jbeder/yaml-cpp.git /tmp/yaml-cpp-src
+          cmake -S /tmp/yaml-cpp-src -B /tmp/yaml-cpp-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
+            -DCMAKE_INSTALL_PREFIX=${{ env.MINGW_DEPS }} \
+            -DYAML_BUILD_SHARED_LIBS=OFF -DYAML_CPP_BUILD_TESTS=OFF -DYAML_CPP_BUILD_TOOLS=OFF
+          cmake --build /tmp/yaml-cpp-build
+          cmake --install /tmp/yaml-cpp-build
+
+      - name: Build GTest for MinGW
+        if: steps.cache-mingw.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch v1.15.2 \
+            https://github.com/google/googletest.git /tmp/gtest-src
+          cmake -S /tmp/gtest-src -B /tmp/gtest-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
+            -DCMAKE_INSTALL_PREFIX=${{ env.MINGW_DEPS }} \
+            -DBUILD_GMOCK=OFF -DBUILD_GTEST=ON -DINSTALL_GTEST=ON
+          cmake --build /tmp/gtest-build
+          cmake --install /tmp/gtest-build
+
+      - name: Build verihogg-format (MinGW)
+        run: |
+          cmake -S . -B build-mingw -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
+            -DCMAKE_PREFIX_PATH=${{ env.MINGW_DEPS }} \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/wine64 \
+            -DCMAKE_DISABLE_FIND_PACKAGE_GTest=OFF
+          cmake --build build-mingw
+
+      - name: Test via Wine (excluding SCR1 integration)
+        env:
+          WINEPREFIX: /tmp/wine
+        run: |
+          ctest --test-dir build-mingw --output-on-failure -E scr1
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: verihogg-format-windows-x64
+          path: build-mingw/bin/verihogg-format.exe
+          if-no-files-found: warn
+          retention-days: 7
