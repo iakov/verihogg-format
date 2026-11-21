@@ -13,6 +13,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Option: statically link the C runtime on MSVC (off = dynamic /MD).
+option(VHG_USE_STATIC_CRT "Link C runtime statically on MSVC" OFF)
+
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS formatter/src/**.cpp)
 
 # Slang: support both slang (direct install) and slang-verilog (vcpkg) package names.
@@ -117,6 +120,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE slang::slang Microsoft.GSL::GSL CL
 
 if(MSVC)
   target_compile_options(${PROJECT_NAME} PRIVATE /W4 /bigobj)
+  if(VHG_USE_STATIC_CRT)
+    set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY
+      "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  else()
+    set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY
+      "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+  endif()
 else()
   target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
@@ -139,10 +149,14 @@ if(GTest_FOUND)
   elseif(DEFINED SCR1_ROOT)
     set(SCR1_PATH "${SCR1_ROOT}")
   else()
-    message(FATAL_ERROR "SCR1_ROOT not set (needed for tests)")
+    message(WARNING "SCR1_ROOT not set — SCR1 integration tests will be skipped. "
+      "Set SCR1_ROOT to a checkout of https://github.com/syntacore/scr1 to enable them.")
+    set(VHG_SKIP_SCR1 TRUE)
   endif()
 
-  message(STATUS "Using SCR1 from: ${SCR1_PATH}")
+  if(NOT VHG_SKIP_SCR1)
+    message(STATUS "Using SCR1 from: ${SCR1_PATH}")
+  endif()
 
   file(GLOB_RECURSE LIB_SRC CONFIGURE_DEPENDS formatter/src/**.cpp)
   list(FILTER LIB_SRC EXCLUDE REGEX ".*/main\\.cpp$")
@@ -154,13 +168,19 @@ if(GTest_FOUND)
     PUBLIC VERIHOGG_VERSION="${PROJECT_VERSION}")
   target_link_libraries(verihogg-format-lib PUBLIC slang::slang CLI11::CLI11 Threads::Threads)
   target_link_libraries(verihogg-format-lib PRIVATE yaml-cpp::yaml-cpp ${VHG_VALIJSON_TARGET})
+  if(MSVC)
+    set_property(TARGET verihogg-format-lib PROPERTY MSVC_RUNTIME_LIBRARY
+      "MultiThreaded$<$<CONFIG:Debug>:Debug>$<IF:$<BOOL:${VHG_USE_STATIC_CRT}>,,DLL>")
+  endif()
 
   file(GLOB_RECURSE TEST_SRC CONFIGURE_DEPENDS formatter/tests/*.cpp)
 
   if(TEST_SRC)
     add_executable(verihogg-tests ${TEST_SRC})
     target_link_libraries(verihogg-tests PRIVATE verihogg-format-lib GTest::gtest GTest::gtest_main CLI11::CLI11)
-    target_compile_definitions(verihogg-tests PRIVATE SCR1_DIR="${SCR1_PATH}")
+    if(NOT VHG_SKIP_SCR1)
+      target_compile_definitions(verihogg-tests PRIVATE SCR1_DIR="${SCR1_PATH}")
+    endif()
     include(GoogleTest)
     gtest_discover_tests(verihogg-tests DISCOVERY_MODE PRE_TEST)
     add_test(NAME CheckCliInputErrors
