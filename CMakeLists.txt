@@ -15,14 +15,58 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS formatter/src/**.cpp)
 
-find_package(slang REQUIRED)
-find_package(Microsoft.GSL CONFIG REQUIRED)
+# Slang: support both slang (direct install) and slang-verilog (vcpkg) package names.
+find_package(slang CONFIG QUIET)
+if(NOT slang_FOUND)
+  find_package(slang-verilog CONFIG QUIET)
+  if(slang-verilog_FOUND AND NOT TARGET slang::slang)
+    add_library(slang::slang ALIAS slang-verilog::slang)
+  endif()
+endif()
+if(NOT TARGET slang::slang)
+  message(FATAL_ERROR "\nslang (sv-lang) not found. Install via vcpkg:\n"
+    "  vcpkg install slang-verilog\n"
+    "Or provide a CMake prefix path pointing to a slang build:\n"
+    "  cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/slang/install\n")
+endif()
 
-find_package(CLI11 CONFIG REQUIRED)
+# Microsoft.GSL: header-only; use FetchContent when not found via CONFIG.
+find_package(Microsoft.GSL CONFIG QUIET)
+if(NOT Microsoft.GSL_FOUND)
+  include(FetchContent)
+  FetchContent_Declare(microsoft-gsl
+    GIT_REPOSITORY https://github.com/microsoft/GSL
+    GIT_TAG v4.2.0
+    GIT_SHALLOW TRUE)
+  FetchContent_MakeAvailable(microsoft-gsl)
+endif()
+
+# CLI11: header-only; FetchContent fallback.
+find_package(CLI11 CONFIG QUIET)
+if(NOT CLI11_FOUND)
+  include(FetchContent)
+  FetchContent_Declare(cli11
+    GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+    GIT_TAG v2.4.2
+    GIT_SHALLOW TRUE)
+  FetchContent_MakeAvailable(cli11)
+endif()
+
 find_package(Threads REQUIRED)
 
 find_package(yaml-cpp CONFIG REQUIRED)
-find_package(valijson CONFIG REQUIRED)
+
+# valijson: header-only; supports both ValiJSON::valijson and bare valijson targets.
+find_package(valijson CONFIG QUIET)
+if(NOT valijson_FOUND)
+  include(FetchContent)
+  FetchContent_Declare(valijson
+    GIT_REPOSITORY https://github.com/tristanpenman/valijson.git
+    GIT_TAG v1.1.2
+    GIT_SHALLOW TRUE
+    GIT_SUBMODULES "")
+  FetchContent_MakeAvailable(valijson)
+endif()
 
 # Embed the configuration JSON schema into the binary so that runtime
 # validation does not depend on files installed alongside the executable.
