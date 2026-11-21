@@ -1,0 +1,12 @@
+{
+  "name": "verihogg-format",
+  "version": "0.1.0",
+  "dependencies": [
+    "slang-verilog",
+    "ms-gsl",
+    "cli11",
+    "yaml-cpp",
+    "valijson",
+    "gtest"
+  ]
+}

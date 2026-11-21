@@ -1,1 +1,6 @@
 /build/
+/build-*/
+/vcpkg/
+/.vscode/
+/.tmp/
+/.venv/
