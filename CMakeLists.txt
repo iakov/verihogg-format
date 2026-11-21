@@ -110,6 +110,11 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 add_executable(${PROJECT_NAME} ${SRC} ${VHG_GENERATED_SOURCE})
 
+if(WIN32)
+  set(VHG_RC_FILE ${CMAKE_CURRENT_SOURCE_DIR}/formatter/resources/verihogg-format.rc)
+  target_sources(${PROJECT_NAME} PRIVATE ${VHG_RC_FILE})
+endif()
+
 target_include_directories(${PROJECT_NAME}
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/formatter/include>
