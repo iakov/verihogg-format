@@ -1,6 +1,8 @@
 # verihogg-format
 
 [![CMake Build](https://github.com/verihogg/verihogg-format/actions/workflows/build.yml/badge.svg)](https://github.com/verihogg/verihogg-format/actions/workflows/build.yml)
+[![macOS Build](https://github.com/verihogg/verihogg-format/actions/workflows/macos.yml/badge.svg)](https://github.com/verihogg/verihogg-format/actions/workflows/macos.yml)
+[![Windows Build](https://github.com/verihogg/verihogg-format/actions/workflows/windows-msvc.yml/badge.svg)](https://github.com/verihogg/verihogg-format/actions/workflows/windows-msvc.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **verihogg-format** formats SystemVerilog source files. It adjusts indentation and spacing, aligns groups such as module ports, joins short statements where they fit, and searches for line breaks around a configurable column target. It can print a preview, rewrite files, or check formatting in CI.
@@ -206,6 +208,32 @@ cmake -S . -B build -DCMAKE_DISABLE_FIND_PACKAGE_GTest=FALSE -DSCR1_ROOT=/path/t
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+### Windows (MSVC + vcpkg)
+
+Install [vcpkg](https://github.com/Microsoft/vcpkg), then configure with its toolchain file:
+
+```powershell
+vcpkg install --triplet x64-windows
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure -E scr1
+```
+
+Pre-built Windows binaries are available from [GitHub Releases](https://github.com/verihogg/verihogg-format/releases).
+
+### macOS
+
+Install dependencies with [Homebrew](https://brew.sh), then build:
+
+```sh
+brew install cli11 yaml-cpp valijson googletest
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure -E scr1
+```
+
+Pre-built macOS universal binaries are available from [GitHub Releases](https://github.com/verihogg/verihogg-format/releases).
 
 ## Repository layout
 
