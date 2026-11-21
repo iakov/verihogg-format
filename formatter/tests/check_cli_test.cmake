@@ -14,8 +14,13 @@ file(WRITE "${test_dir}/stdin.sv" "module stdin_module;endmodule\n")
 file(WRITE "${test_dir}/config.yaml" "version: \"0.1.0\"\nindentation_spaces: 2\n")
 
 function(check_cli expected_status expected_dirty)
+  if("${EMULATOR}" STREQUAL "")
+    set(FORMATTER_CMD "${FORMATTER}")
+  else()
+    set(FORMATTER_CMD ${EMULATOR} "${FORMATTER}")
+  endif()
   execute_process(
-    COMMAND ${EMULATOR} "${FORMATTER}" --check --config "${test_dir}/config.yaml" ${ARGN}
+    COMMAND ${FORMATTER_CMD} --check --config "${test_dir}/config.yaml" ${ARGN}
     WORKING_DIRECTORY "${test_dir}"
     INPUT_FILE "${test_dir}/stdin.sv"
     RESULT_VARIABLE status
