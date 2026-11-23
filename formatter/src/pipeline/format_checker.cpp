@@ -15,6 +15,11 @@ namespace format {
 namespace fs = std::filesystem;
 
 auto FormatChecker::checkFile(const fs::path& path) const -> CheckResult {
+  // macOS permits opening directories at the POSIX level, so ifstream alone
+  // cannot detect a directory the way Linux does. Be explicit for portability.
+  if (fs::is_directory(path)) {
+    return {.status = CheckStatus::kUnreadable};
+  }
   std::ifstream f{path, std::ios::binary};
   if (!f) {
     return {.status = CheckStatus::kUnreadable};
