@@ -14,6 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: macos-${{ runner.os }}
+
       - name: Install Homebrew dependencies
         run: |
           brew update > /dev/null 2>&1 || true
@@ -27,15 +32,16 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=$HOME/slang-install \
             -DSLANG_TESTS=OFF -DSLANG_BENCHMARKS=OFF -DBUILD_SHARED_LIBS=OFF \
-            -DSLANG_USE_BOOST=OFF
-          cmake --build /tmp/slang-build
+            -DSLANG_USE_BOOST=OFF -DSLANG_INCLUDE_BOOST=OFF
+          cmake --build /tmp/slang-build --parallel
           cmake --install /tmp/slang-build
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$HOME/slang-install
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DCMAKE_PREFIX_PATH=$HOME/slang-install -DVHG_ENABLE_CCACHE=ON
 
       - name: Build
-        run: cmake --build build
+        run: cmake --build build --parallel
 
       - name: Test (excluding SCR1 integration)
         run: ctest --test-dir build --output-on-failure -E scr1

@@ -16,6 +16,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Option: statically link the C runtime on MSVC (off = dynamic /MD).
 option(VHG_USE_STATIC_CRT "Link C runtime statically on MSVC" OFF)
 
+# Option: wrap the compiler in ccache to slice CI rebuild times. Enabled from
+# CI via -DVHG_ENABLE_CCACHE=ON so local builds stay unchanged.
+option(VHG_ENABLE_CCACHE "Use ccache as the compiler launcher" OFF)
+find_program(VHG_CCACHE_PROGRAM ccache)
+if(VHG_ENABLE_CCACHE AND VHG_CCACHE_PROGRAM)
+  message(STATUS "Using ccache: ${VHG_CCACHE_PROGRAM}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER ${VHG_CCACHE_PROGRAM})
+endif()
+
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS formatter/src/**.cpp)
 
 # Slang: support both slang (direct install) and slang-verilog (vcpkg) package names.
@@ -148,6 +157,26 @@ else()
   target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# Precompiled header for the common library/system headers; cuts rebuild time
+# substantially on MSVC and (with ccache) on GCC/Clang across all platforms.
+target_precompile_headers(${PROJECT_NAME} PRIVATE
+  <string>
+  <string_view>
+  <vector>
+  <optional>
+  <variant>
+  <span>
+  <memory>
+  <filesystem>
+  <fstream>
+  <iostream>
+  <sstream>
+  <functional>
+  <algorithm>
+  <numeric>
+  <cstdint>
+)
+
 # Install rule
 include(GNUInstallDirs)
 install(TARGETS ${PROJECT_NAME}
@@ -183,6 +212,7 @@ if(GTest_FOUND)
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/formatter/include>)
   target_compile_definitions(verihogg-format-lib
     PUBLIC VERIHOGG_VERSION="${PROJECT_VERSION}")
+  target_precompile_headers(verihogg-format-lib REUSE_FROM ${PROJECT_NAME})
   target_link_libraries(verihogg-format-lib PUBLIC slang::slang Microsoft.GSL::GSL CLI11::CLI11 Threads::Threads)
   target_link_libraries(verihogg-format-lib PRIVATE yaml-cpp::yaml-cpp ${VHG_VALIJSON_TARGET})
   if(MSVC)
