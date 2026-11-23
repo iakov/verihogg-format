@@ -75,6 +75,7 @@ jobs:
         with:
           name: windows-x64
           path: verihogg-format-windows-x64.zip
+          if-no-files-found: error
 
   build-macos:
     name: macOS universal
@@ -104,6 +105,7 @@ jobs:
         with:
           name: macos-universal
           path: verihogg-format-macos-universal.tar.gz
+          if-no-files-found: error
 
   create-release:
     name: Create GitHub Release

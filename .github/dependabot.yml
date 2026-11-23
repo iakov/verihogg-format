@@ -1,0 +1,49 @@
+# Dependabot config: group updates by ecosystem into a single monthly PR.
+# Three things this repo actually tracks: GitHub Action pinning (workflows),
+# the vcpkg manifest for third-party C++ deps, and the Docker base image tag.
+#
+# Rationale: slang-verilog/ms-gsl/yaml-cpp track upstream stable tags with no
+# ABI churn for header-only pieces; bundling them keeps rebuilds predictable.
+# A monthly cadence keeps PR noise low for a small project.
+
+version: 2
+
+updates:
+  # GitHub Actions workflows. Group ALL action bumps into one weekly-ish
+  # cadence spread over a month; a single commit per month is enough here.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "08:00"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # Third-party C++ dependencies fetched via the vcpkg manifest in CI.
+  # Keep them in one PR; header-only libs (GSL, CLI11, valijson) are safe to
+  # update together, and bundled bumps are what this project's CI expects.
+  - package-ecosystem: "vcpkg"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "08:00"
+    groups:
+      cpp-deps:
+        patterns:
+          - "*"
+
+  # Docker base image used by the Docker build/push workflows.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "08:00"
+    groups:
+      base-image:
+        patterns:
+          - "*"

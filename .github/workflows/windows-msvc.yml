@@ -44,6 +44,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: verihogg-format-windows-x64
-          path: build/bin/verihogg-format.exe
-          if-no-files-found: warn
+          # Multi-config (Visual Studio) generator puts artifacts in a
+          # per-config subdirectory, hence the RelWithDebInfo segment.
+          path: build/bin/RelWithDebInfo/verihogg-format.exe
+          if-no-files-found: error
           retention-days: 7

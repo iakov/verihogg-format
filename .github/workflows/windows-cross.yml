@@ -114,5 +114,5 @@ jobs:
         with:
           name: verihogg-format-windows-x64
           path: verihogg-format-windows-x64.zip
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
