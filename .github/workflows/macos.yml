@@ -36,6 +36,7 @@ jobs:
             https://github.com/MikePopoloski/slang.git /tmp/slang-src
           cmake -S /tmp/slang-src -B /tmp/slang-build \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS="-DFMT_USE_STD_FORMAT=0" \
             -DCMAKE_INSTALL_PREFIX=$HOME/slang-install \
             -DSLANG_TESTS=OFF -DSLANG_BENCHMARKS=OFF -DBUILD_SHARED_LIBS=OFF \
             -DSLANG_USE_BOOST=OFF -DSLANG_INCLUDE_BOOST=OFF
