@@ -13,16 +13,68 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Option: wrap the compiler in ccache to slice CI rebuild times.
+option(VHG_ENABLE_CCACHE "Use ccache as the compiler launcher" OFF)
+find_program(VHG_CCACHE_PROGRAM ccache)
+if(VHG_ENABLE_CCACHE AND VHG_CCACHE_PROGRAM)
+  message(STATUS "Using ccache: ${VHG_CCACHE_PROGRAM}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER ${VHG_CCACHE_PROGRAM})
+endif()
+
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS formatter/src/**.cpp)
 
-find_package(slang REQUIRED)
-find_package(Microsoft.GSL CONFIG REQUIRED)
+# Slang: support both slang (direct/nix) and slang-verilog (vcpkg) package names.
+find_package(slang CONFIG QUIET)
+if(NOT slang_FOUND)
+  find_package(slang-verilog CONFIG QUIET)
+  if(slang-verilog_FOUND AND NOT TARGET slang::slang)
+    add_library(slang::slang ALIAS slang-verilog::slang)
+  endif()
+endif()
+if(NOT TARGET slang::slang)
+  message(FATAL_ERROR "\nslang not found. Install via vcpkg: vcpkg install slang-verilog\n")
+endif()
 
-find_package(CLI11 CONFIG REQUIRED)
+# Microsoft.GSL: header-only. macOS "gsl" is GNU Scientific Library, not MS GSL,
+# so a compile-check distinguishes them. Fall back to FetchContent when absent.
+include(CheckIncludeFileCXX)
+check_include_file_cxx(gsl/span VHG_HAVE_MICROSOFT_GSL)
+find_package(Microsoft.GSL CONFIG QUIET)
+if(NOT TARGET Microsoft.GSL::GSL)
+  if(VHG_HAVE_MICROSOFT_GSL)
+    add_library(Microsoft.GSL::GSL INTERFACE IMPORTED)
+  else()
+    include(FetchContent)
+    FetchContent_Declare(microsoft-gsl
+      GIT_REPOSITORY https://github.com/microsoft/GSL
+      GIT_TAG v4.2.0 GIT_SHALLOW TRUE)
+    FetchContent_MakeAvailable(microsoft-gsl)
+  endif()
+endif()
+
+# CLI11: header-only; FetchContent fallback.
+find_package(CLI11 CONFIG QUIET)
+if(NOT CLI11_FOUND)
+  include(FetchContent)
+  FetchContent_Declare(cli11
+    GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+    GIT_TAG v2.4.2 GIT_SHALLOW TRUE)
+  FetchContent_MakeAvailable(cli11)
+endif()
+
 find_package(Threads REQUIRED)
 
 find_package(yaml-cpp CONFIG REQUIRED)
-find_package(valijson CONFIG REQUIRED)
+
+# valijson: header-only; supports both ValiJSON::valijson and bare valijson targets.
+find_package(valijson CONFIG QUIET)
+if(NOT valijson_FOUND)
+  include(FetchContent)
+  FetchContent_Declare(valijson
+    GIT_REPOSITORY https://github.com/tristanpenman/valijson.git
+    GIT_TAG v1.1.2 GIT_SHALLOW TRUE GIT_SUBMODULES "")
+  FetchContent_MakeAvailable(valijson)
+endif()
 
 # Embed the configuration JSON schema into the binary so that runtime
 # validation does not depend on files installed alongside the executable.
@@ -77,6 +129,13 @@ else()
   target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# Precompiled headers cut rebuild time on MSVC and (with ccache) on GCC/Clang.
+target_precompile_headers(${PROJECT_NAME} PRIVATE
+  <string> <string_view> <vector> <optional> <variant> <span>
+  <memory> <filesystem> <fstream> <iostream> <sstream>
+  <functional> <algorithm> <numeric> <cstdint>
+)
+
 # Install rule
 include(GNUInstallDirs)
 install(TARGETS ${PROJECT_NAME}
@@ -112,7 +171,8 @@ if(GTest_FOUND)
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/formatter/include>)
   target_compile_definitions(verihogg-format-lib
     PUBLIC VERIHOGG_VERSION="${PROJECT_VERSION}")
-  target_link_libraries(verihogg-format-lib PUBLIC slang::slang CLI11::CLI11 Threads::Threads)
+  target_link_libraries(verihogg-format-lib PUBLIC slang::slang Microsoft.GSL::GSL CLI11::CLI11 Threads::Threads)
+  target_precompile_headers(verihogg-format-lib REUSE_FROM ${PROJECT_NAME})
   target_link_libraries(verihogg-format-lib PRIVATE yaml-cpp::yaml-cpp ${VHG_VALIJSON_TARGET})
 
   file(GLOB_RECURSE TEST_SRC CONFIGURE_DEPENDS formatter/tests/*.cpp)
