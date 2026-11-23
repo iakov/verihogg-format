@@ -13,6 +13,7 @@ jobs:
   build-windows:
     name: Windows x64
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -20,7 +21,12 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            mingw-w64 g++-mingw-w64-x86-64-posix ninja-build
+            mingw-w64 g++-mingw-w64-x86-64-posix ninja-build ccache
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: mingw-release
 
       - name: Cache MinGW dependencies
         id: cache-mingw
@@ -32,13 +38,22 @@ jobs:
       - name: Build slang for MinGW
         if: steps.cache-mingw.outputs.cache-hit != 'true'
         run: |
+          SHIM=/opt/mingw-hdr-case
+          mkdir -p "$SHIM"
+          for h in /usr/share/mingw-w64/include/*; do
+            name="$(basename "$h")"
+            cap="$(printf '%s' "$name" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$name" | cut -c2-)"
+            if [ "$name" != "$cap" ] && [ -e "$SHIM/$cap" ]; then continue; fi
+            ln -sfn "$h" "$SHIM/$cap"
+          done
           git clone --depth 1 --branch v10.0 \
             https://github.com/MikePopoloski/slang.git /tmp/slang-src
           cmake -S /tmp/slang-src -B /tmp/slang-build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
             -DCMAKE_INSTALL_PREFIX=/opt/mingw-deps \
+            -DCMAKE_CXX_FLAGS="-isystem $SHIM" \
             -DSLANG_TESTS=OFF -DSLANG_BENCHMARKS=OFF -DBUILD_SHARED_LIBS=OFF \
-            -DSLANG_USE_BOOST=OFF
+            -DSLANG_USE_BOOST=OFF -DSLANG_INCLUDE_BOOST=OFF
           cmake --build /tmp/slang-build
           cmake --install /tmp/slang-build
 
@@ -80,6 +95,7 @@ jobs:
   build-macos:
     name: macOS universal
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -111,6 +127,7 @@ jobs:
     name: Create GitHub Release
     needs: [build-windows, build-macos]
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v7

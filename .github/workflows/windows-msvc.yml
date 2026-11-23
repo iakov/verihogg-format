@@ -5,12 +5,17 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 45
     env:
       VCPKG_ROOT: C:\vcpkg
     steps:
