@@ -69,7 +69,7 @@ jobs:
       - name: Build yaml-cpp for MinGW
         if: steps.cache-mingw.outputs.cache-hit != 'true'
         run: |
-          git clone --depth 1 --branch 0.9.0 \
+          git clone --depth 1 --branch 0.8.0 \
             https://github.com/jbeder/yaml-cpp.git /tmp/yaml-cpp-src
           cmake -S /tmp/yaml-cpp-src -B /tmp/yaml-cpp-build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \

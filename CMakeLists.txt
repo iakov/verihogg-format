@@ -33,17 +33,16 @@ if(NOT TARGET slang::slang)
     "  cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/slang/install\n")
 endif()
 
-# Microsoft.GSL: header-only. Some platforms ship a GSL package whose
-# CMake config does not actually expose the gsl/span header (e.g. macOS "gsl"
-# is GNU Scientific Library). Resolve it by locating the real header, and
-# fall back to FetchContent when no usable install exists.
-find_path(MicrosoftGSL_INCLUDE_DIR gsl/span DOC
-         "Microsoft GSL headers (gsl/span)")
-if(MicrosoftGSL_INCLUDE_DIR)
-  add_library(Microsoft.GSL::GSL INTERFACE IMPORTED)
-  set_target_properties(Microsoft.GSL::GSL PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${MicrosoftGSL_INCLUDE_DIR}")
-else()
+# Microsoft.GSL: header-only. Some platforms ship a "gsl" package that is
+# GNU Scientific Library (not Microsoft GSL) and does not provide gsl/span.
+# A compile check -- not find_path/find_package -- is the reliable way to
+# tell them apart, so probe the header and fall back to FetchContent.
+include(CheckIncludeFileCXX)
+check_include_file_cxx(gsl/span VHG_HAVE_MICROSOFT_GSL)
+if(VHG_HAVE_MICROSOFT_GSL)
+  find_package(Microsoft.GSL CONFIG QUIET)
+endif()
+if(NOT TARGET Microsoft.GSL::GSL)
   include(FetchContent)
   FetchContent_Declare(microsoft-gsl
     GIT_REPOSITORY https://github.com/microsoft/GSL
