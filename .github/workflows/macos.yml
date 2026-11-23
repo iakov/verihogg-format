@@ -19,8 +19,20 @@ jobs:
           brew update > /dev/null 2>&1 || true
           brew install cli11 yaml-cpp valijson googletest
 
+      - name: Build slang from source (not in Homebrew)
+        run: |
+          git clone --depth 1 --branch v10.0 \
+            https://github.com/MikePopoloski/slang.git /tmp/slang-src
+          cmake -S /tmp/slang-src -B /tmp/slang-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DSLANG_TESTS=OFF -DSLANG_BENCHMARKS=OFF -DBUILD_SHARED_LIBS=OFF \
+            -DSLANG_USE_BOOST=OFF
+          cmake --build /tmp/slang-build
+          cmake --install /tmp/slang-build
+
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local
 
       - name: Build
         run: cmake --build build

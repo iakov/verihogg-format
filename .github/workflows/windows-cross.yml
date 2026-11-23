@@ -19,10 +19,11 @@ jobs:
 
       - name: Install MinGW toolchain and Wine
         run: |
+          sudo dpkg --add-architecture i386
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
             mingw-w64 g++-mingw-w64-x86-64-posix ninja-build \
-            wine64 wine32 wine wine-binfmt
+            wine64 wine32 wine-binfmt
           # Initialize Wine prefix to avoid first-run delays during testing
           export WINEPREFIX=/tmp/wine
           wine64 wineboot --init 2>/dev/null || true
