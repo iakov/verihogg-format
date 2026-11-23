@@ -39,16 +39,21 @@ endif()
 # tell them apart, so probe the header and fall back to FetchContent.
 include(CheckIncludeFileCXX)
 check_include_file_cxx(gsl/span VHG_HAVE_MICROSOFT_GSL)
-if(VHG_HAVE_MICROSOFT_GSL)
-  find_package(Microsoft.GSL CONFIG QUIET)
-endif()
+find_package(Microsoft.GSL CONFIG QUIET)
 if(NOT TARGET Microsoft.GSL::GSL)
-  include(FetchContent)
-  FetchContent_Declare(microsoft-gsl
-    GIT_REPOSITORY https://github.com/microsoft/GSL
-    GIT_TAG v4.2.0
-    GIT_SHALLOW TRUE)
-  FetchContent_MakeAvailable(microsoft-gsl)
+  if(VHG_HAVE_MICROSOFT_GSL)
+    # The header already resolves with the current include flags (vcpkg or
+    # system install offers gsl/span but no CMake config). An empty INTERFACE
+    # target avoids re-downloading a header-only lib the compiler can find.
+    add_library(Microsoft.GSL::GSL INTERFACE IMPORTED)
+  else()
+    include(FetchContent)
+    FetchContent_Declare(microsoft-gsl
+      GIT_REPOSITORY https://github.com/microsoft/GSL
+      GIT_TAG v4.2.0
+      GIT_SHALLOW TRUE)
+    FetchContent_MakeAvailable(microsoft-gsl)
+  endif()
 endif()
 
 # CLI11: header-only; FetchContent fallback.
