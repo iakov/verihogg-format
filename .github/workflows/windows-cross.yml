@@ -1,0 +1,117 @@
+name: Windows (MinGW cross-compile)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MINGW_DEPS: /opt/mingw-deps
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: mingw-${{ runner.os }}
+
+      - name: Cache MinGW dependencies (slang, yaml-cpp, gtest)
+        id: cache-mingw
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.MINGW_DEPS }}
+          key: mingw-deps-v1
+
+      - name: Install MinGW toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            mingw-w64 g++-mingw-w64-x86-64-posix ninja-build ccache
+
+      # slang includes <Windows.h> (uppercase) but Ubuntu's MinGW headers are
+      # lowercase (windows.h). Linux is case-sensitive, so symlink an uppercase
+      # variant of every header into a shim dir added to the include path.
+      # Cheap and always safe to (re)build; the expensive dependency builds
+      # below are skipped on a cache hit.
+      - name: Create case-insensitive MinGW header shim
+        run: |
+          SHIM=/opt/mingw-hdr-case
+          mkdir -p "$SHIM"
+          for h in /usr/share/mingw-w64/include/*; do
+            name="$(basename "$h")"
+            cap="$(printf '%s' "$name" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$name" | cut -c2-)"
+            if [ "$name" != "$cap" ] && [ -e "$SHIM/$cap" ]; then continue; fi
+            ln -sfn "$h" "$SHIM/$cap"
+          done
+          echo "SHIM=$SHIM" >> "$GITHUB_ENV"
+
+      - name: Build MinGW dependencies (slang, yaml-cpp, gtest) [cached]
+        if: steps.cache-mingw.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch v10.0 https://github.com/MikePopoloski/slang.git /tmp/slang-src
+          cmake -S /tmp/slang-src -B /tmp/slang-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
+            -DCMAKE_INSTALL_PREFIX=${{ env.MINGW_DEPS }} \
+            -DCMAKE_CXX_FLAGS="-isystem $SHIM" \
+            -DSLANG_TESTS=OFF -DSLANG_BENCHMARKS=OFF -DBUILD_SHARED_LIBS=OFF \
+            -DSLANG_USE_BOOST=OFF -DSLANG_INCLUDE_BOOST=OFF
+          cmake --build /tmp/slang-build
+          cmake --install /tmp/slang-build
+
+          git clone --depth 1 --branch 0.8.0 https://github.com/jbeder/yaml-cpp.git /tmp/yaml-cpp-src
+          cmake -S /tmp/yaml-cpp-src -B /tmp/yaml-cpp-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
+            -DCMAKE_INSTALL_PREFIX=${{ env.MINGW_DEPS }} \
+            -DYAML_BUILD_SHARED_LIBS=OFF -DYAML_CPP_BUILD_TESTS=OFF -DYAML_CPP_BUILD_TOOLS=OFF
+          cmake --build /tmp/yaml-cpp-build
+          cmake --install /tmp/yaml-cpp-build
+
+          git clone --depth 1 --branch v1.15.2 https://github.com/google/googletest.git /tmp/gtest-src
+          cmake -S /tmp/gtest-src -B /tmp/gtest-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
+            -DCMAKE_INSTALL_PREFIX=${{ env.MINGW_DEPS }} \
+            -DBUILD_GMOCK=OFF -DBUILD_GTEST=ON -DINSTALL_GTEST=ON
+          cmake --build /tmp/gtest-build
+          cmake --install /tmp/gtest-build
+
+      - name: Build verihogg-format (MinGW, RelWithDebInfo)
+        run: |
+          cmake -S . -B build-mingw -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
+            -DCMAKE_PREFIX_PATH=${{ env.MINGW_DEPS }} \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DVHG_ENABLE_CCACHE=ON \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_DISABLE_FIND_PACKAGE_GTest=ON
+          cmake --build build-mingw
+
+      # MinGW-cross tests are omitted intentionally: gtest discovery under a
+      # Wine emulator is fragile and this job is the release-artifact builder.
+      # The same suite already runs natively on the MSVC (Windows) and macOS
+      # jobs, so nothing is lost.
+      - name: Package Windows artifact
+        run: |
+          mkdir -p release-windows
+          cp build-mingw/bin/verihogg-format.exe release-windows/
+          cp LICENSE release-windows/
+          cd release-windows && zip -9 ../verihogg-format-windows-x64.zip *
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: verihogg-format-windows-x64
+          path: verihogg-format-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 7
