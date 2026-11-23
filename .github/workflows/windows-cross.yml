@@ -37,6 +37,21 @@ jobs:
           path: ${{ env.MINGW_DEPS }}
           key: mingw-deps-${{ hashFiles('cmake/toolchain-x86_64-w64-mingw32.cmake') }}
 
+      - name: Create case-insensitive MinGW header shim
+        run: |
+          # slang includes <Windows.h> but Ubuntu's MinGW headers are
+          # lowercase (windows.h). Linux filesystems are case-sensitive,
+          # so provide uppercase-first-letter symlinks in a shim dir.
+          SHIM=/opt/mingw-hdr-case
+          mkdir -p "$SHIM"
+          for h in /usr/share/mingw-w64/include/*; do
+            name="$(basename "$h")"
+            cap="$(printf '%s' "$name" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$name" | cut -c2-)"
+            if [ "$name" != "$cap" ] && [ -e "$SHIM/$cap" ]; then continue; fi
+            ln -sfn "$h" "$SHIM/$cap"
+          done
+          echo "SHIM=$SHIM" >> "$GITHUB_ENV"
+
       - name: Build slang for MinGW
         if: steps.cache-mingw.outputs.cache-hit != 'true'
         run: |
@@ -45,6 +60,7 @@ jobs:
           cmake -S /tmp/slang-src -B /tmp/slang-build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
             -DCMAKE_INSTALL_PREFIX=${{ env.MINGW_DEPS }} \
+            -DCMAKE_CXX_FLAGS="-isystem $SHIM" \
             -DSLANG_TESTS=OFF -DSLANG_BENCHMARKS=OFF -DBUILD_SHARED_LIBS=OFF \
             -DSLANG_USE_BOOST=OFF
           cmake --build /tmp/slang-build
