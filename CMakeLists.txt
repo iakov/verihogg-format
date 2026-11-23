@@ -145,6 +145,8 @@ target_compile_definitions(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME} PRIVATE slang::slang Microsoft.GSL::GSL CLI11::CLI11 Threads::Threads yaml-cpp::yaml-cpp ${VHG_VALIJSON_TARGET})
 
 if(MSVC)
+  # /bigobj is required because slang generates enough symbols to overflow
+  # MSVC's default 2^16-object-section limit.
   target_compile_options(${PROJECT_NAME} PRIVATE /W4 /bigobj)
   if(VHG_USE_STATIC_CRT)
     set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY
@@ -213,6 +215,9 @@ if(GTest_FOUND)
   target_compile_definitions(verihogg-format-lib
     PUBLIC VERIHOGG_VERSION="${PROJECT_VERSION}")
   target_precompile_headers(verihogg-format-lib REUSE_FROM ${PROJECT_NAME})
+  # Microsoft.GSL::GSL added to the test-lib because Nix puts GSL headers on the
+  # global include path (masking the missing link), but macOS/Windows/vcpkg do
+  # not — producing a gsl/span not-found at compile time.
   target_link_libraries(verihogg-format-lib PUBLIC slang::slang Microsoft.GSL::GSL CLI11::CLI11 Threads::Threads)
   target_link_libraries(verihogg-format-lib PRIVATE yaml-cpp::yaml-cpp ${VHG_VALIJSON_TARGET})
   if(MSVC)
@@ -241,6 +246,10 @@ if(GTest_FOUND)
     include(GoogleTest)
     gtest_discover_tests(verihogg-tests DISCOVERY_MODE PRE_TEST)
     if(NOT WIN32 OR CMAKE_CROSSCOMPILING_EMULATOR)
+    # The cmake -P script receives the executable path from CTest. On Windows
+    # that path contains backslashes (e.g. C:\Users\…), and cmake -P interprets
+    # backslash-letter sequences as escape codes, breaking execute_process.
+    # Pin-safe on cross-compile (Linux) where the path is forward-slash.
     add_test(NAME CheckCliInputErrors
         COMMAND ${CMAKE_COMMAND}
           -DFORMATTER=$<TARGET_FILE:verihogg-format>

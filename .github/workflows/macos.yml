@@ -34,6 +34,9 @@ jobs:
         run: |
           git clone --depth 1 --branch v10.0 \
             https://github.com/MikePopoloski/slang.git /tmp/slang-src
+          # AppleClang 21 (macOS 16+) defines std::format, which shadows
+          # fmt::format. V10's bundled fmt does not handle that conflict, so
+          # force the old path.
           cmake -S /tmp/slang-src -B /tmp/slang-build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_FLAGS="-DFMT_USE_STD_FORMAT=0" \

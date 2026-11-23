@@ -1,5 +1,9 @@
 # Toolchain file for cross-compiling to Windows x64 using MinGW-w64.
 # Usage: cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-x86_64-w64-mingw32.cmake
+#
+# The -posix compiler variant is required for std::thread and C++ exception
+# support. The -win32 variant lacks __thread and breaks C++ exception chains
+# across thread boundaries.
 
 set(CMAKE_SYSTEM_NAME Windows)
 set(CMAKE_SYSTEM_PROCESSOR x86_64)
