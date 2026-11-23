@@ -193,6 +193,13 @@ if(GTest_FOUND)
   if(TEST_SRC)
     add_executable(verihogg-tests ${TEST_SRC})
     target_link_libraries(verihogg-tests PRIVATE verihogg-format-lib GTest::gtest GTest::gtest_main CLI11::CLI11)
+    # gtest_discover_tests resolves the emulator from the target's
+    # CROSSCOMPILING_EMULATOR *property*, not the global variable, so mirror
+    # the global into the property or discovery/(PRE_TEST) runs the bare .exe.
+    if(CMAKE_CROSSCOMPILING_EMULATOR)
+      set_target_properties(verihogg-tests PROPERTIES
+        CROSSCOMPILING_EMULATOR "${CMAKE_CROSSCOMPILING_EMULATOR}")
+    endif()
     if(NOT VHG_SKIP_SCR1)
       target_compile_definitions(verihogg-tests PRIVATE SCR1_DIR="${SCR1_PATH}")
     endif()
