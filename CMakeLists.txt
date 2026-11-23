@@ -178,7 +178,7 @@ if(GTest_FOUND)
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/formatter/include>)
   target_compile_definitions(verihogg-format-lib
     PUBLIC VERIHOGG_VERSION="${PROJECT_VERSION}")
-  target_link_libraries(verihogg-format-lib PUBLIC slang::slang CLI11::CLI11 Threads::Threads)
+  target_link_libraries(verihogg-format-lib PUBLIC slang::slang Microsoft.GSL::GSL CLI11::CLI11 Threads::Threads)
   target_link_libraries(verihogg-format-lib PRIVATE yaml-cpp::yaml-cpp ${VHG_VALIJSON_TARGET})
   if(MSVC)
     set_property(TARGET verihogg-format-lib PROPERTY MSVC_RUNTIME_LIBRARY
