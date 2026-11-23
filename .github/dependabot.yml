@@ -18,3 +18,14 @@ updates:
       interval: "monthly"
       day: "monday"
       time: "08:00"
+
+  - package-ecosystem: "vcpkg"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "08:00"
+    groups:
+      cpp-deps:
+        patterns:
+          - "*"

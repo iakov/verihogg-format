@@ -21,6 +21,9 @@ if(VHG_ENABLE_CCACHE AND VHG_CCACHE_PROGRAM)
   set(CMAKE_CXX_COMPILER_LAUNCHER ${VHG_CCACHE_PROGRAM})
 endif()
 
+# Option: statically link the C runtime on MSVC (off = dynamic /MD).
+option(VHG_USE_STATIC_CRT "Link C runtime statically on MSVC" OFF)
+
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS formatter/src/**.cpp)
 
 # Slang: support both slang (direct/nix) and slang-verilog (vcpkg) package names.
@@ -115,6 +118,11 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 add_executable(${PROJECT_NAME} ${SRC} ${VHG_GENERATED_SOURCE})
 
+if(WIN32)
+  set(VHG_RC_FILE ${CMAKE_CURRENT_SOURCE_DIR}/formatter/resources/verihogg-format.rc)
+  target_sources(${PROJECT_NAME} PRIVATE ${VHG_RC_FILE})
+endif()
+
 target_include_directories(${PROJECT_NAME}
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/formatter/include>
@@ -125,6 +133,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE slang::slang Microsoft.GSL::GSL CL
 
 if(MSVC)
   target_compile_options(${PROJECT_NAME} PRIVATE /W4 /bigobj)
+  if(VHG_USE_STATIC_CRT)
+    set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY
+      "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  else()
+    set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY
+      "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+  endif()
 else()
   target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
@@ -174,6 +189,10 @@ if(GTest_FOUND)
   target_link_libraries(verihogg-format-lib PUBLIC slang::slang Microsoft.GSL::GSL CLI11::CLI11 Threads::Threads)
   target_precompile_headers(verihogg-format-lib REUSE_FROM ${PROJECT_NAME})
   target_link_libraries(verihogg-format-lib PRIVATE yaml-cpp::yaml-cpp ${VHG_VALIJSON_TARGET})
+  if(MSVC)
+    set_property(TARGET verihogg-format-lib PROPERTY MSVC_RUNTIME_LIBRARY
+      "MultiThreaded$<$<CONFIG:Debug>:Debug>$<IF:$<BOOL:${VHG_USE_STATIC_CRT}>,,DLL>")
+  endif()
 
   file(GLOB_RECURSE TEST_SRC CONFIGURE_DEPENDS formatter/tests/*.cpp)
   if(VHG_SKIP_SCR1)
@@ -194,10 +213,14 @@ if(GTest_FOUND)
     endif()
     include(GoogleTest)
     gtest_discover_tests(verihogg-tests DISCOVERY_MODE PRE_TEST)
-    add_test(NAME CheckCliInputErrors
-      COMMAND ${CMAKE_COMMAND}
-        -DFORMATTER=$<TARGET_FILE:verihogg-format>
-        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/check-cli-tests
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/formatter/tests/check_cli_test.cmake)
+    if(NOT WIN32 OR CMAKE_CROSSCOMPILING_EMULATOR)
+      # cmake -P interprets backslash-letter in paths (e.g. C:\Users\) as
+      # escape codes, breaking execute_process. Only skip on native Windows.
+      add_test(NAME CheckCliInputErrors
+        COMMAND ${CMAKE_COMMAND}
+          -DFORMATTER=$<TARGET_FILE:verihogg-format>
+          -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/check-cli-tests
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/formatter/tests/check_cli_test.cmake)
+    endif()
   endif()
 endif()

@@ -1,0 +1,151 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  build-windows:
+    name: Windows x64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install MinGW toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            mingw-w64 g++-mingw-w64-x86-64-posix ninja-build ccache
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: mingw-release
+
+      - name: Cache MinGW dependencies
+        id: cache-mingw
+        uses: actions/cache@v4
+        with:
+          path: /opt/mingw-deps
+          key: mingw-deps-release
+
+      - name: Build slang for MinGW
+        if: steps.cache-mingw.outputs.cache-hit != 'true'
+        run: |
+          SHIM=/opt/mingw-hdr-case
+          mkdir -p "$SHIM"
+          for h in /usr/share/mingw-w64/include/*; do
+            name="$(basename "$h")"
+            cap="$(printf '%s' "$name" | cut -c1 | tr '[:lower:]' '[:upper:]')$(printf '%s' "$name" | cut -c2-)"
+            if [ "$name" != "$cap" ] && [ -e "$SHIM/$cap" ]; then continue; fi
+            ln -sfn "$h" "$SHIM/$cap"
+          done
+          git clone --depth 1 --branch v10.0 \
+            https://github.com/MikePopoloski/slang.git /tmp/slang-src
+          cmake -S /tmp/slang-src -B /tmp/slang-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
+            -DCMAKE_INSTALL_PREFIX=/opt/mingw-deps \
+            -DCMAKE_CXX_FLAGS="-isystem $SHIM" \
+            -DSLANG_TESTS=OFF -DSLANG_BENCHMARKS=OFF -DBUILD_SHARED_LIBS=OFF \
+            -DSLANG_USE_BOOST=OFF -DSLANG_INCLUDE_BOOST=OFF
+          cmake --build /tmp/slang-build
+          cmake --install /tmp/slang-build
+
+      - name: Build yaml-cpp for MinGW
+        if: steps.cache-mingw.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch 0.8.0 \
+            https://github.com/jbeder/yaml-cpp.git /tmp/yaml-cpp-src
+          cmake -S /tmp/yaml-cpp-src -B /tmp/yaml-cpp-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
+            -DCMAKE_INSTALL_PREFIX=/opt/mingw-deps \
+            -DYAML_BUILD_SHARED_LIBS=OFF -DYAML_CPP_BUILD_TESTS=OFF -DYAML_CPP_BUILD_TOOLS=OFF
+          cmake --build /tmp/yaml-cpp-build
+          cmake --install /tmp/yaml-cpp-build
+
+      - name: Build verihogg-format (MinGW)
+        run: |
+          cmake -S . -B build-mingw -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/cmake/toolchain-x86_64-w64-mingw32.cmake \
+            -DCMAKE_PREFIX_PATH=/opt/mingw-deps \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_DISABLE_FIND_PACKAGE_GTest=ON
+          cmake --build build-mingw
+
+      - name: Package Windows artifact
+        run: |
+          mkdir -p release-windows
+          cp build-mingw/bin/verihogg-format.exe release-windows/
+          cp LICENSE release-windows/
+          cd release-windows && zip -9 ../verihogg-format-windows-x64.zip *
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-x64
+          path: verihogg-format-windows-x64.zip
+          if-no-files-found: error
+
+  build-macos:
+    name: macOS universal
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: brew install cli11 yaml-cpp valijson
+
+      - name: Build
+        run: |
+          cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_DISABLE_FIND_PACKAGE_GTest=ON \
+            -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+          cmake --build build-macos
+
+      - name: Package macOS artifact
+        run: |
+          mkdir -p release-macos
+          cp build-macos/bin/verihogg-format release-macos/
+          cp LICENSE release-macos/
+          cd release-macos && tar czf ../verihogg-format-macos-universal.tar.gz *
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-universal
+          path: verihogg-format-macos-universal.tar.gz
+          if-no-files-found: error
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+
+      - name: Generate release notes
+        run: |
+          echo "## verihogg-format ${{ github.ref_name }}" > release-notes.md
+          echo "" >> release-notes.md
+          echo "### Downloads" >> release-notes.md
+          echo "- [Windows x64](verihogg-format-windows-x64.zip)" >> release-notes.md
+          echo "- [macOS Universal](verihogg-format-macos-universal.tar.gz)" >> release-notes.md
+          echo "- Docker: \`ghcr.io/verihogg/verihogg-format:latest\`" >> release-notes.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          draft: true
+          files: |
+            windows-x64/verihogg-format-windows-x64.zip
+            macos-universal/verihogg-format-macos-universal.tar.gz
