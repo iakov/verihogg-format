@@ -203,6 +203,7 @@ if(GTest_FOUND)
   target_precompile_headers(verihogg-format-lib REUSE_FROM ${PROJECT_NAME})
   target_link_libraries(verihogg-format-lib PRIVATE yaml-cpp::yaml-cpp ${VHG_VALIJSON_TARGET})
   if(MSVC)
+    target_compile_options(verihogg-format-lib PRIVATE /W4 /bigobj /sdl /guard:cf)
     set_property(TARGET verihogg-format-lib PROPERTY MSVC_RUNTIME_LIBRARY
       "MultiThreaded$<$<CONFIG:Debug>:Debug>$<IF:$<BOOL:${VHG_USE_STATIC_CRT}>,,DLL>")
   endif()
