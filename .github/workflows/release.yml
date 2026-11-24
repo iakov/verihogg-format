@@ -104,9 +104,12 @@ jobs:
 
       - name: Build
         run: |
+          # macOS UBSan needs the Clang runtime dylib. The release artifact
+          # must be self-sufficient, so disable UBSan for the shipped binary.
           cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_DISABLE_FIND_PACKAGE_GTest=ON \
-            -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+            -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" \
+            -DVHG_UBSAN=OFF
           cmake --build build-macos
 
       - name: Package macOS artifact

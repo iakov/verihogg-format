@@ -13,7 +13,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Option: wrap the compiler in ccache to slice CI rebuild times.
 option(VHG_ENABLE_CCACHE "Use ccache as the compiler launcher" OFF)
 find_program(VHG_CCACHE_PROGRAM ccache)
 if(VHG_ENABLE_CCACHE AND VHG_CCACHE_PROGRAM)
@@ -21,8 +20,19 @@ if(VHG_ENABLE_CCACHE AND VHG_CCACHE_PROGRAM)
   set(CMAKE_CXX_COMPILER_LAUNCHER ${VHG_CCACHE_PROGRAM})
 endif()
 
-# Option: statically link the C runtime on MSVC (off = dynamic /MD).
 option(VHG_USE_STATIC_CRT "Link C runtime statically on MSVC" OFF)
+
+include(sanitizers)
+
+option(VHG_UBSAN "Enable UndefinedBehaviorSanitizer" ON)
+if(VHG_UBSAN)
+  enable_ubsan()
+endif()
+
+option(VHG_ASAN "Enable AddressSanitizer with leak detection" OFF)
+if(VHG_ASAN)
+  enable_asan()
+endif()
 
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS formatter/src/**.cpp)
 
@@ -55,7 +65,6 @@ if(NOT TARGET Microsoft.GSL::GSL)
   endif()
 endif()
 
-# CLI11: header-only; FetchContent fallback.
 find_package(CLI11 CONFIG QUIET)
 if(NOT CLI11_FOUND)
   include(FetchContent)
@@ -69,7 +78,6 @@ find_package(Threads REQUIRED)
 
 find_package(yaml-cpp CONFIG REQUIRED)
 
-# valijson: header-only; supports both ValiJSON::valijson and bare valijson targets.
 find_package(valijson CONFIG QUIET)
 if(NOT valijson_FOUND)
   include(FetchContent)
@@ -132,7 +140,8 @@ target_compile_definitions(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME} PRIVATE slang::slang Microsoft.GSL::GSL CLI11::CLI11 Threads::Threads yaml-cpp::yaml-cpp ${VHG_VALIJSON_TARGET})
 
 if(MSVC)
-  target_compile_options(${PROJECT_NAME} PRIVATE /W4 /bigobj)
+  target_compile_options(${PROJECT_NAME} PRIVATE /W4 /bigobj /sdl /guard:cf)
+  target_link_options(${PROJECT_NAME} PRIVATE /guard:cf)
   if(VHG_USE_STATIC_CRT)
     set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY
       "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -144,7 +153,10 @@ else()
   target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
-# Precompiled headers cut rebuild time on MSVC and (with ccache) on GCC/Clang.
+if(MINGW AND VHG_UBSAN)
+  target_link_options(${PROJECT_NAME} PRIVATE -static-libubsan)
+endif()
+
 target_precompile_headers(${PROJECT_NAME} PRIVATE
   <string> <string_view> <vector> <optional> <variant> <span>
   <memory> <filesystem> <fstream> <iostream> <sstream>

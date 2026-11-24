@@ -65,6 +65,8 @@
             preConfigure = ''
               export SCR1_ROOT=${scr1}
             '';
+
+            cmakeFlags = [ "-DVHG_ASAN=ON" ];
           };
 
           devShells.default = pkgs.mkShell {

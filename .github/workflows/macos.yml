@@ -45,10 +45,13 @@ jobs:
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-          -DCMAKE_PREFIX_PATH=$HOME/slang-install -DVHG_ENABLE_CCACHE=ON
+          -DCMAKE_PREFIX_PATH=$HOME/slang-install -DVHG_ENABLE_CCACHE=ON \
+          -DVHG_ASAN=ON
 
       - name: Build
         run: cmake --build build --parallel
 
       - name: Test (excluding SCR1 integration)
+        env:
+          ASAN_OPTIONS: detect_leaks=1:detect_stack_use_after_return=1:check_initialization_order=1:strict_string_checks=1
         run: ctest --test-dir build --output-on-failure -E scr1
