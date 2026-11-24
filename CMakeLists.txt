@@ -33,9 +33,10 @@ endif()
 option(VHG_ASAN "Enable AddressSanitizer with leak detection" OFF)
 if(VHG_ASAN)
   enable_asan()
-  # GCC false-positives in libstdc++'s std_function.h trigger
-  # -Wmaybe-uninitialized under ASan, which conflicts with -Werror.
-  add_compile_options(-Wno-maybe-uninitialized)
+  if(NOT MSVC)
+    # GCC false-positives in libstdc++'s std_function.h under ASan
+    add_compile_options(-Wno-maybe-uninitialized)
+  endif()
 endif()
 
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS formatter/src/**.cpp)
@@ -155,10 +156,6 @@ if(MSVC)
   endif()
 else()
   target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
-endif()
-
-if(MINGW AND VHG_UBSAN)
-  target_link_options(${PROJECT_NAME} PRIVATE -static-libubsan)
 endif()
 
 target_precompile_headers(${PROJECT_NAME} PRIVATE
