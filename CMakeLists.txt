@@ -33,6 +33,9 @@ endif()
 option(VHG_ASAN "Enable AddressSanitizer with leak detection" OFF)
 if(VHG_ASAN)
   enable_asan()
+  # GCC false-positives in libstdc++'s std_function.h trigger
+  # -Wmaybe-uninitialized under ASan, which conflicts with -Werror.
+  add_compile_options(-Wno-maybe-uninitialized)
 endif()
 
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS formatter/src/**.cpp)
