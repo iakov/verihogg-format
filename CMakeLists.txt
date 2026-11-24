@@ -22,6 +22,7 @@ endif()
 
 option(VHG_USE_STATIC_CRT "Link C runtime statically on MSVC" OFF)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(sanitizers)
 
 option(VHG_UBSAN "Enable UndefinedBehaviorSanitizer" ON)
